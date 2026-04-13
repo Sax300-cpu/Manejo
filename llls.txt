@@ -1,0 +1,210 @@
+-----Clase del componentepropio si me toca del Combobox
+import java.awt.Color;
+import java.awt.Component;
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.Statement;
+import javax.swing.DefaultComboBoxModel;
+import javax.swing.JComboBox;
+import javax.swing.JLabel;
+import javax.swing.JList;
+import javax.swing.JOptionPane;
+import javax.swing.ListCellRenderer;
+
+public class jcbxCombo extends JComboBox {
+     private DefaultComboBoxModel model;
+public jcbxCombo() {
+    }
+    
+    public jcbxCombo(String nomBase, String nomTabla, String columnas) {
+        super();
+        model = new DefaultComboBoxModel<>();
+        this.setModel(model);
+        
+        Conexion con = new Conexion();
+        Connection cn = con.Conectar(nomBase);
+        
+        if (cn != null) {
+            cargarDatos(cn, nomTabla, columnas);
+        } else {
+            JOptionPane.showMessageDialog(null, "No se pudo conectar a la db");
+        }
+        
+        // Aplicar el renderer correcto para ComboBox
+        this.setRenderer(new ColorCellRenderer());
+    }
+
+  public void cargarDatos(Connection conexion, String nomTabla, String columnas) {
+
+      if (this.model == null) {
+        this.model = new DefaultComboBoxModel<>();
+        this.setModel(model);
+    }
+
+    String consultaSQL = "SELECT " + columnas + " FROM " + nomTabla;
+    
+    try (Statement st = conexion.createStatement(); ResultSet rs = st.executeQuery(consultaSQL)) {
+        
+        model.removeAllElements(); // Ahora ya no será nulo y no dará error
+        
+        int columnasCount = rs.getMetaData().getColumnCount();
+        while (rs.next()) {
+            StringBuilder filaTexto = new StringBuilder();
+            for (int i = 1; i <= columnasCount; i++) {
+                filaTexto.append(rs.getObject(i).toString());
+                if (i < columnasCount) filaTexto.append(" - ");
+            }
+            model.addElement(filaTexto.toString());
+        }
+    } catch (Exception e) {
+        JOptionPane.showMessageDialog(null, "Error al cargar combo: " + e.getMessage());
+    }
+}
+    
+    // El Renderer para ComboBox debe implementar ListCellRenderer
+    private static class ColorCellRenderer extends JLabel implements ListCellRenderer<Object> {
+        public ColorCellRenderer() {
+            setOpaque(true);
+        }
+
+        @Override
+        public Component getListCellRendererComponent(JList<? extends Object> list, Object value, 
+                int index, boolean isSelected, boolean cellHasFocus) {
+            
+            setText(value != null ? value.toString() : "");
+
+            if (isSelected) {
+                setBackground(Color.BLUE);
+                setForeground(Color.WHITE);
+            } else {
+                // Lógica de colores por contenido
+                try {
+                    Double.parseDouble(getText());
+                    setBackground(Color.RED);
+                    setForeground(Color.WHITE);
+                } catch (Exception e) {
+                    setBackground(Color.GREEN);
+                    setForeground(Color.BLACK);
+                }
+            }
+            return this;
+        }
+    }
+    
+}
+
+-----Clase del Frame
+import com.sun.jdi.connect.spi.Connection;
+import javax.swing.table.DefaultTableModel;
+import java.sql.*;
+
+public class EstudiantesUta extends javax.swing.JFrame {
+    public EstudiantesUta() {
+        initComponents();
+        java.sql.Connection con = Conexion.Conectar("cuarto");
+        jtblRegistros.cargarDatos(con, "estudiantes", "*");
+        jcbxCombo1.cargarDatos(con, "estudiantes", "*");        
+    }
+
+
+   ----- Clase del componentepropio si me toca del jtable
+    private DefaultTableModel model;
+
+    public jtblRegistros() {
+    }
+
+    public jtblRegistros(String nomBase, String nomTabla, String columns) {
+        super();
+        model  =  new DefaultTableModel();
+        this.setModel(model);
+        this.getRowHeight(25);
+        this.getTableHeader().setReorderingAllowed(false);
+        
+        Conexion con = new Conexion();
+        Connection cn = con.Conectar(nomBase);
+        
+        if (cn != null) {
+            cargarDatos(cn,nomTabla,columns);
+        }else{
+            JOptionPane.showMessageDialog(null, "no funco");
+        }
+    
+    }
+
+    public void cargarDatos(Connection cn, String nomTabla, String columns) {
+        String consultaSQL = "SELECT "+ columns + " FROM "+ nomTabla;
+        
+        try (Statement st = cn.createStatement();ResultSet rs = st.executeQuery(consultaSQL)){
+            
+            ResultSetMetaData meta = rs.getMetaData();
+            int columnsCount = meta.getColumnCount();
+            
+            String[] titulos = new String[columnsCount];
+            for (int i = 0; i < columnsCount; i++) {
+                titulos[i] = meta.getColumnLabel(i+1);
+            }
+            
+            model = new DefaultTableModel(null,titulos);
+            this.setModel(model);
+            
+            
+            while (rs.next()) {                
+                Object[] filas = new Object[columnsCount];
+                for (int i = 0; i < columnsCount; i++) {
+                    filas[i] = rs.getObject(i+1);
+                }
+                model.addRow(filas);
+            }
+            
+            this.setDefaultRenderer(Object.class, new ColorCellRenderer());
+            
+        } catch (Exception e) {
+        }
+    }
+    
+    public static class ColorCellRenderer extends DefaultTableCellRenderer{
+        @Override
+        public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column){
+            Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+            
+            if (!isSelected) {
+                try {
+                    c.setBackground(Color.RED);
+                    c.setForeground(Color.WHITE);
+                } catch (Exception e) {
+                    c.setBackground(Color.GREEN);
+                    c.setForeground(Color.WHITE);
+                }
+            }else{
+                c.setBackground(Color.BLUE);
+                c.setForeground(Color.BLACK);
+            }
+            
+        return c;
+        }
+    }
+
+Conexión
+package interfaces;
+
+import javax.swing.JOptionPane;
+import java.sql.*;
+
+/**
+ *
+ * @author Usuario
+ */
+public class Conexion {
+    Connection conectar ;
+    public Connection conectar (){
+        try {
+            Class.forName("com.mysql.cj.jdbc.Driver");
+            //jdbc:mysql://localhost:aquivaelpuertodelxampp3315/nombredelaBD","root",""
+            conectar = DriverManager.getConnection("jdbc:mysql://localhost:3315/cuarto","root","");
+            //JOptionPane.showMessageDialog(null, "Conectado");
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(null, ex);
+        }
+        return conectar;
+    }
+}
