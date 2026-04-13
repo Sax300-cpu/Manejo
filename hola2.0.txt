@@ -1,0 +1,201 @@
+--ComboBoxCorregido
+import java.awt.Color;
+import java.awt.Component;
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.Statement;
+import javax.swing.DefaultComboBoxModel;
+import javax.swing.JComboBox;
+import javax.swing.JLabel;
+import javax.swing.JList;
+import javax.swing.JOptionPane;
+import javax.swing.ListCellRenderer;
+
+public class jcbxCombo extends JComboBox<String> {
+    
+    private DefaultComboBoxModel<String> model;
+
+    public jcbxCombo() {
+        super();
+        model = new DefaultComboBoxModel<>();
+        this.setModel(model);
+        this.setRenderer(new ColorCellRenderer());
+    }
+
+    public void cargarDatos(Connection conexion, String nomTabla, String columnas) {
+        if (this.model == null) {
+            this.model = new DefaultComboBoxModel<>();
+            this.setModel(model);
+        }
+
+        String consultaSQL = "SELECT " + columnas + " FROM " + nomTabla;
+        
+        try (Statement st = conexion.createStatement(); ResultSet rs = st.executeQuery(consultaSQL)) {
+            model.removeAllElements();
+            int columnasCount = rs.getMetaData().getColumnCount();
+            
+            while (rs.next()) {
+                StringBuilder filaTexto = new StringBuilder();
+                for (int i = 1; i <= columnasCount; i++) {
+                    filaTexto.append(rs.getObject(i).toString());
+                    if (i < columnasCount) filaTexto.append(" - ");
+                }
+                model.addElement(filaTexto.toString());
+            }
+        } catch (Exception e) {
+            JOptionPane.showMessageDialog(null, "Error al cargar combo: " + e.getMessage());
+        }
+    }
+    
+    private static class ColorCellRenderer extends JLabel implements ListCellRenderer<Object> {
+        public ColorCellRenderer() {
+            setOpaque(true);
+        }
+
+        @Override
+        public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
+            setText(value != null ? value.toString() : "");
+
+            if (isSelected) {
+                setBackground(Color.BLUE);
+                setForeground(Color.WHITE);
+            } else {
+                if (getText().matches("[0-9]+(\\.[0-9]+)?")) {
+                    setBackground(Color.RED);
+                    setForeground(Color.WHITE);
+                } else {
+                    setBackground(Color.GREEN);
+                    setForeground(Color.BLACK);
+                }
+            }
+            return this;
+        }
+    }
+}
+
+--Jtable Corregido
+import java.awt.Color;
+import java.awt.Component;
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
+import java.sql.Statement;
+import javax.swing.JOptionPane;
+import javax.swing.JTable;
+import javax.swing.table.DefaultTableCellRenderer;
+import javax.swing.table.DefaultTableModel;
+
+public class jtblRegistros extends JTable {
+    
+    private DefaultTableModel model;
+
+    public jtblRegistros() {
+        super();
+        model = new DefaultTableModel();
+        this.setModel(model);
+        this.setRowHeight(25);
+        this.getTableHeader().setReorderingAllowed(false);
+        this.setDefaultRenderer(Object.class, new ColorCellRenderer());
+    }
+
+    public void cargarDatos(Connection cn, String nomTabla, String columns) {
+        String consultaSQL = "SELECT " + columns + " FROM " + nomTabla;
+        
+        try (Statement st = cn.createStatement(); ResultSet rs = st.executeQuery(consultaSQL)) {
+            ResultSetMetaData meta = rs.getMetaData();
+            int columnsCount = meta.getColumnCount();
+            
+            String[] titulos = new String[columnsCount];
+            for (int i = 0; i < columnsCount; i++) {
+                titulos[i] = meta.getColumnLabel(i + 1);
+            }
+            
+            model = new DefaultTableModel(null, titulos);
+            this.setModel(model);
+            
+            while (rs.next()) {                
+                Object[] filas = new Object[columnsCount];
+                for (int i = 0; i < columnsCount; i++) {
+                    filas[i] = rs.getObject(i + 1);
+                }
+                model.addRow(filas);
+            }
+            
+            this.setDefaultRenderer(Object.class, new ColorCellRenderer());
+            
+        } catch (Exception e) {
+            JOptionPane.showMessageDialog(null, "Error al cargar tabla: " + e.getMessage());
+        }
+    }
+    
+    public static class ColorCellRenderer extends DefaultTableCellRenderer {
+        @Override
+        public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
+            Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+            
+            if (!isSelected) {
+                if (value != null && value.toString().matches("[0-9]+(\\.[0-9]+)?")) {
+                    c.setBackground(Color.RED);
+                    c.setForeground(Color.WHITE);
+                } else {
+                    c.setBackground(Color.GREEN);
+                    c.setForeground(Color.WHITE);
+                }
+            } else {
+                c.setBackground(Color.BLUE);
+                c.setForeground(Color.BLACK);
+            }
+            
+            return c;
+        }
+    }
+}
+
+---Conexión
+package interfaces;
+
+import javax.swing.JOptionPane;
+import java.sql.*;
+
+/**
+ *
+ * @author Usuario
+ */
+public class Conexion {
+    Connection conectar ;
+    public Connection conectar (){
+        try {
+            Class.forName("com.mysql.cj.jdbc.Driver");
+            //jdbc:mysql://localhost:aquivaelpuertodelxampp3315/nombredelaBD","root",""
+            conectar = DriverManager.getConnection("jdbc:mysql://localhost:3315/cuarto","root","");
+            //JOptionPane.showMessageDialog(null, "Conectado");
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(null, ex);
+        }
+        return conectar;
+    }
+}
+
+----Loque debe ir en el Frame
+
+import java.sql.Connection;
+import javax.swing.JOptionPane;
+
+public class FrmEstudiantes extends javax.swing.JFrame {
+
+    public FrmEstudiantes() {
+        initComponents();
+        
+        Conexion cc = new Conexion();
+        Connection cn = cc.conectar();
+        
+        if (cn != null) {
+            jcbxCombo1.cargarDatos(cn, "estudiantes", "*");
+            
+            jtblRegistros1.cargarDatos(cn, "estudiantes", "*");
+        } else {
+            JOptionPane.showMessageDialog(this, "Error: No hay conexión a la base de datos.");
+        }
+    }
+
+}
